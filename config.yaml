@@ -1,0 +1,46 @@
+app:
+  name: ice-chat
+  host: 0.0.0.0
+  mode: release
+  port: 8080
+
+db:
+  host: 127.0.0.1
+  port: 3306
+  user: root
+  password: example
+  name: ice-chat
+  charset: utf8mb4
+
+redis:
+  host: 127.0.0.1
+  port: 6379
+  password: ""
+  db: 0
+
+zap:
+  level: info
+  output: logs/app.log
+  max_size: 100
+  max_backups: 7
+  max_age: 30
+  compress: true
+
+kafka:
+  brokers: ["localhost:9092"] # Kafka集群地址
+  topic: "chat_room" # 聊天消息主题
+  group_id: "chat_room_consumer" # 消费者组ID
+  producer:
+    write_timeout: 10 # 写入超时时间（秒）
+    read_timeout: 10 # 读取超时时间（秒）
+    balancer: "least_bytes" # 分区均衡策略
+  consumer:
+    min_bytes: 10240 # 最小读取字节（10KB）
+    max_bytes: 10485760 # 最大读取字节（10MB）
+    max_wait: 1 # 最大等待时间（秒）
+    read_backoff_min: 100 # 读取重试间隔（毫秒）
+
+jwt:
+  secret: eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoiSm9obiIsImFkbWluIjp0cnVlfQ.4KEFF3vATW4jwlorHE25GkQETtWabPxwZzaiZk7vuUS8TnxkTyoTfoI3LiujYwyuUcv1cpgrOOpBg_PlXfRdwg
+  access_token_expire_duration: 2h
+  refresh_token_expire_duration: 72h

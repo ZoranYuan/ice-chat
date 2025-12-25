@@ -1,0 +1,49 @@
+services:
+  kafka:
+    image: apache/kafka:3.9.0
+    container_name: ice-chat-kafka
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      - TZ=Asia/Shanghai
+      - LANG=C.UTF-8
+      - KAFKA_NODE_ID=1
+      - CLUSTER_ID=kafka-cluster
+      - KAFKA_PROCESS_ROLES=broker,controller
+      - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://127.0.0.1:9092
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@localhost:9093
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+      - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
+      - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1
+      - KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0
+    volumes:
+      - /data/docker/kafka-kraft/data:/var/lib/kafka/data
+      - /data/docker/kafka-kraft/config:/mnt/shared/config
+      - /data/docker/kafka-kraft/secrets:/etc/kafka/secrets
+    privileged: true
+    network_mode: "bridge"
+  db:
+    image: mysql:8.0
+    container_name: ice-chat-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: example       # root 用户密码
+      MYSQL_DATABASE: mydatabase         # 默认数据库
+      MYSQL_USER: user                   # 普通用户
+      MYSQL_PASSWORD: userpassword       # 普通用户密码
+    ports:
+      - "3306:3306"                      # 映射到宿主机端口
+    volumes:
+      - db_data:/var/lib/mysql           # 数据持久化
+  redis:
+    image: redis:7.0
+    container_name: ice-chat-redis
+    restart: always
+    ports:
+      - "6379:6379"                      # 映射到宿主机端口
+volumes:
+  db_data:
