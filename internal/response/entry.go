@@ -16,8 +16,8 @@ import (
 
 const (
 	CodeOK           = 200
-	CodeBadParam     = 1001
-	CodeUnauthorized = 1002
+	CodeBadParam     = 400
+	CodeUnauthorized = 401
 	CodeServerErr    = 201
 )
 

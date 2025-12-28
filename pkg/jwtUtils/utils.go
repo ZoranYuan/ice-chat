@@ -25,7 +25,7 @@ func (j *jwtUtils) Generate(userId uint64) (string, *Claims, error) {
 	now := time.Now()
 
 	claims := &Claims{
-		UserID: userId,
+		UserId: userId,
 		JTI:    jti,
 		RegisteredClaims: jwt.RegisteredClaims{
 			IssuedAt:  jwt.NewNumericDate(now),
@@ -42,17 +42,22 @@ func (j *jwtUtils) Generate(userId uint64) (string, *Claims, error) {
 	return s, claims, nil
 }
 
-func (j *jwtUtils) Parse(tokenStr string) (jwt.MapClaims, error) {
-	token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
-		if t.Method != jwt.SigningMethodHS256 {
-			return nil, errors.New("unexpected signing method")
-		}
-		return j.secret, nil
-	})
+func (j *jwtUtils) Parse(tokenStr string) (*Claims, error) {
+	claims := &Claims{}
+	token, err := jwt.ParseWithClaims(
+		tokenStr,
+		claims,
+		func(t *jwt.Token) (interface{}, error) {
+			if t.Method != jwt.SigningMethodHS256 {
+				return nil, errors.New("unexpected signing method")
+			}
+			return j.secret, nil
+		},
+	)
 
 	if err != nil || !token.Valid {
 		return nil, errors.New("invalid token")
 	}
 
-	return token.Claims.(jwt.MapClaims), nil
+	return claims, nil
 }

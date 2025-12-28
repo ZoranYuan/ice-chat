@@ -7,5 +7,6 @@ import (
 )
 
 func RegisterUserRouter(r *gin.Engine, userApi *api.UserAPI) {
-	r.POST("/user/login", userApi.Login)
+	ur := r.Group("/user")
+	ur.POST("/login", userApi.Login)
 }

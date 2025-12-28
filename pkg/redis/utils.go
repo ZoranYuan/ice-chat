@@ -15,6 +15,7 @@ type RedisOperator interface {
 	Set(ctx context.Context, key string, value any, expire time.Duration) error
 	Get(ctx context.Context, key string, dest any) error
 	Del(ctx context.Context, key string) error
+	SetNx(ctx context.Context, key string, expire time.Duration) (bool, error)
 }
 
 // RedisUtil 实现RedisOperator接口
@@ -59,4 +60,12 @@ func (ru *redisUtil) Del(ctx context.Context, key string) error {
 		ctx = context.Background()
 	}
 	return ru.client.Del(ctx, key).Err()
+}
+
+// 唯一键设置
+func (ru *redisUtil) SetNx(ctx context.Context, key string, expire time.Duration) (bool, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return ru.client.SetNX(ctx, key, "", expire).Result()
 }

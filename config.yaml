@@ -39,6 +39,16 @@ kafka:
     max_bytes: 10485760 # 最大读取字节（10MB）
     max_wait: 1 # 最大等待时间（秒）
     read_backoff_min: 100 # 读取重试间隔（毫秒）
+    
+websocket:
+  # 缓冲区配置（字节）
+  read_buffer_size: 1024 # 读缓冲区大小
+  write_buffer_size: 1024 # 写缓冲区大小
+
+  # 超时/间隔配置（秒）- 统一用秒作为单位，Go侧转换为time.Duration
+  ping_interval: 30 # 心跳发送间隔（秒）
+  read_deadline: 60 # 读超时时间（秒，无消息则断开）
+  write_deadline: 10 # 写超时时间（秒）
 
 jwt:
   secret: eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoiSm9obiIsImFkbWluIjp0cnVlfQ.4KEFF3vATW4jwlorHE25GkQETtWabPxwZzaiZk7vuUS8TnxkTyoTfoI3LiujYwyuUcv1cpgrOOpBg_PlXfRdwg

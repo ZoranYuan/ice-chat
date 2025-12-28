@@ -8,13 +8,13 @@ import (
 )
 
 type User struct {
-	ID              uint64         `gorm:"column:id;type:bigint unsigned;not null;primaryKey" json:"id"`
+	UserId          uint64         `gorm:"column:user_id;type:bigint unsigned;not null;primaryKey" json:"userId"`
 	Username        string         `gorm:"column:username;type:varchar(50);not null;unique" json:"username"`
 	Avatar          string         `gorm:"column:avatar;type:varchar(255);default:''" json:"avatar"`
 	Password        string         `gorm:"column:password;type:varchar(100);not null" json:"-"`
 	Email           string         `gorm:"column:email;type:varchar(100);not null" json:"email"`
 	Status          int8           `gorm:"column:status;type:tinyint;default:1" json:"status"`
-	LastOfflineTime *time.Time     `gorm:"column:last_offline_time;type:datetime;default:null" json:"lastOffLineTime"` // 新增字段
+	LastOfflineTime *time.Time     `gorm:"column:last_offline_time;type:datetime;default:null" json:"lastOfflineTime"` // 新增字段
 	CreatedAt       time.Time      `gorm:"column:created_at;type:datetime;default:CURRENT_TIMESTAMP" json:"-"`
 	UpdatedAt       time.Time      `gorm:"column:updated_at;type:datetime;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" json:"-"`
 	DeletedAt       gorm.DeletedAt `gorm:"column:deleted_at;type:datetime;index" json:"-"`
@@ -27,8 +27,8 @@ func (u User) TableName() string {
 
 // BeforeCreate 钩子
 func (u *User) BeforeCreate(tx *gorm.DB) error {
-	if u.ID == 0 {
-		u.ID = snowflake.NewID() // 调用雪花ID生成函数
+	if u.UserId == 0 {
+		u.UserId = snowflake.NewID() // 调用雪花ID生成函数
 	}
 	return nil
 }

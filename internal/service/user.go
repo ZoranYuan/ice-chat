@@ -42,18 +42,18 @@ func (us *UserService) Login(v request.Login) (*response.Login, error) {
 		Expire: config.Conf.JWT.GetAccessTokenExpireDuration(),
 	})
 
-	token, claims, err := j.Generate(user.ID)
+	token, claims, err := j.Generate(user.UserId)
 	if err != nil {
 		return nil, err
 	}
 
 	// 将 token 存入到 redis 中
-	accessKey := constants.ACCESSKEY + strconv.FormatUint(claims.UserID, 10) + ":" + claims.JTI
+	accessKey := constants.ACCESSKEY + strconv.FormatUint(claims.UserId, 10) + ":" + claims.JTI
 	us.userRedis.StoreAccessKey(accessKey)
 
 	var res *response.Login = &response.Login{
 		Token:    token,
-		UserId:   user.ID,
+		UserId:   user.UserId,
 		UserName: user.Username,
 		Avatar:   user.Avatar,
 	}

@@ -12,8 +12,9 @@ import (
 func AuthMiddleware() func(ctx *gin.Context) {
 	return func(ctx *gin.Context) {
 		token := ctx.GetHeader("Authorization")
+
 		if token == "" {
-			response.BadRequest(ctx)
+			response.Unauthorized(ctx)
 			ctx.Abort()
 			return
 		}
@@ -32,8 +33,8 @@ func AuthMiddleware() func(ctx *gin.Context) {
 		}
 
 		// 注入上下文
-		ctx.Set("uid", claims["userId"])
-		ctx.Set("jti", claims["jti"])
+		ctx.Set("uid", claims.UserId)
+		ctx.Set("jti", claims.JTI)
 
 		ctx.Next()
 	}

@@ -12,7 +12,7 @@ type Config struct {
 }
 
 type Claims struct {
-	UserID uint64 `json:"userId"`
+	UserId uint64 `json:"userId"`
 	JTI    string `json:"jti"`
 	jwt.RegisteredClaims
 }

@@ -5,4 +5,6 @@ type config struct {
 	DB    DBConfig    `mapstructure:"db"`
 	Redis RedisConfig `mapstructure:"redis"`
 	JWT   JWTConfig   `mapstructure:"jwt"`
+	Ws    WsConfig    `mapstructure:"ws"`
+	Kafka KafkaConfig `mapstructure:"kafka"`
 }

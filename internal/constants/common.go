@@ -1,3 +1,5 @@
 package constants
 
-var ()
+var (
+	KAFKAINITKEY = "kafka_init"
+)
