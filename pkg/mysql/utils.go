@@ -19,5 +19,5 @@ func (du *DBUtils) Client() *gorm.DB {
 }
 
 func (du *DBUtils) AutoMigrate() error {
-	return du.client.AutoMigrate(&model.User{}, &model.Message{}, &model.Groups{}, &model.GroupMember{})
+	return du.client.AutoMigrate(&model.User{}, &model.Message{}, &model.Rooms{}, &model.RoomsMember{})
 }

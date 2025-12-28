@@ -13,11 +13,11 @@ import (
 )
 
 type wsServiceImpl struct {
-	msgRepo    repository.MessageRepository
-	kafka      *kafka.KafkaClient
-	userRepo   repository.UserRepository
-	wsManager  *ws.RoomManager
-	groupsRepo repository.GroupsRepository
+	msgRepo   repository.MessageRepository
+	kafka     *kafka.KafkaClient
+	userRepo  repository.UserRepository
+	wsManager *ws.RoomManager
+	roomsRepo repository.RoomsRepository
 }
 
 type WsService interface {
@@ -26,18 +26,18 @@ type WsService interface {
 	WatchHandler(c *ws.Client, room *ws.Room, msg []byte)
 }
 
-func NewWsService(msgRepo repository.MessageRepository, userRepo repository.UserRepository, kafka *kafka.KafkaClient, wsManager *ws.RoomManager, groupsRepo repository.GroupsRepository) WsService {
+func NewWsService(msgRepo repository.MessageRepository, userRepo repository.UserRepository, kafka *kafka.KafkaClient, wsManager *ws.RoomManager, roomsRepo repository.RoomsRepository) WsService {
 	return &wsServiceImpl{
-		msgRepo:    msgRepo,
-		kafka:      kafka,
-		userRepo:   userRepo,
-		wsManager:  wsManager,
-		groupsRepo: groupsRepo,
+		msgRepo:   msgRepo,
+		kafka:     kafka,
+		userRepo:  userRepo,
+		wsManager: wsManager,
+		roomsRepo: roomsRepo,
 	}
 }
 
 func (wss *wsServiceImpl) GroupIsExists(groupId uint64) (bool, error) {
-	return wss.groupsRepo.GroupIsExists(groupId)
+	return wss.roomsRepo.GroupIsExists(groupId)
 }
 
 func (wss *wsServiceImpl) handle(c *ws.Client, room *ws.Room, msg []byte) {

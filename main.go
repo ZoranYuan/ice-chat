@@ -37,7 +37,7 @@ func main() {
 	}
 
 	// chat DI
-	wsSvc := service.NewWsService(repository.NewUmsgRepository(dbUtils), repository.NewUserRepository(dbUtils), kafkaClient, roomManager, repository.NewGroupsRepo(dbUtils))
+	wsSvc := service.NewWsService(repository.NewUmsgRepository(dbUtils), repository.NewUserRepository(dbUtils), kafkaClient, roomManager, repository.NewRoomsRepo(dbUtils))
 	wsApi := api.NewWsAPI(wsSvc, roomManager, wsUtils)
 
 	// user DI
@@ -45,7 +45,7 @@ func main() {
 	userApi := api.NewUserAPI(userSvc)
 
 	// group DI
-	groupSvc := service.NewGroupsService(repository.NewGroupsRepo(dbUtils), redisOp)
+	groupSvc := service.NewGroupsService(repository.NewRoomsRepo(dbUtils), redisOp)
 	groupApi := api.NewGroupsApi(groupSvc)
 
 	r := gin.Default()

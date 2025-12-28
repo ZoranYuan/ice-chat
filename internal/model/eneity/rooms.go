@@ -7,9 +7,9 @@ import (
 	"gorm.io/gorm"
 )
 
-type Groups struct {
-	GroupId    uint64         `gorm:"column:group_id;type:bigint unsigned;not null;primaryKey" json:"groupId"` // 群组ID
-	GroupName  string         `json:"groupName" gorm:"column:group_name;not null"`                             // 群组名称
+type Rooms struct {
+	RoomID     uint64         `gorm:"column:group_id;type:bigint unsigned;not null;primaryKey" json:"groupId"` // 群组ID
+	RoomName   string         `json:"groupName" gorm:"column:group_name;not null"`                             // 群组名称
 	Avatar     string         `json:"avatar" gorm:"avatar"`
 	Desc       string         `json:"desc" gorm:"avatar"`
 	CreateUser uint64         `json:"createUser" gorm:"createUser;not null"`
@@ -20,14 +20,14 @@ type Groups struct {
 }
 
 // TableName 指定数据库表名
-func (g *Groups) TableName() string {
-	return "groups"
+func (Rooms) TableName() string {
+	return "rooms"
 }
 
 // BeforeCreate 钩子
-func (g *Groups) BeforeCreate(tx *gorm.DB) error {
-	if g.GroupId == 0 {
-		g.GroupId = snowflake.NewID() // 调用雪花ID生成函数
+func (r *Rooms) BeforeCreate(tx *gorm.DB) error {
+	if r.RoomID == 0 {
+		r.RoomID = snowflake.NewID() // 调用雪花ID生成函数
 	}
 	return nil
 }
