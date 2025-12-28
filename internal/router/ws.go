@@ -7,7 +7,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterWsRouter(r *gin.Engine, wsApi *api.WsAPI) {
+func RegisterWsRouter(r *gin.Engine, wsApi api.WsApi) {
 	wr := r.Group("/ws").Use(middleware.AuthMiddleware())
-	wr.GET("/chat", wsApi.Chat)
+	wr.GET("/chat/:groupId", wsApi.Chat)
+	wr.GET("/watch/:groupId", wsApi.Watch)
 }

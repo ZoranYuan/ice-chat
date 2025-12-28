@@ -8,10 +8,10 @@ import (
 	"ice-chat/internal/repository"
 	"ice-chat/internal/router"
 	"ice-chat/internal/service"
-	"ice-chat/internal/ws"
 	"ice-chat/pkg/mysql"
 	"ice-chat/pkg/redis"
 	"ice-chat/pkg/snowflake"
+	"ice-chat/pkg/ws"
 	"log"
 
 	"github.com/gin-gonic/gin"
@@ -27,19 +27,18 @@ func main() {
 	dbUtils := mysql.GetDBUtils() // db 只注入 resp 业务层中
 
 	// 创建 ws 服务
-	wsUtils := ws.GetUpgrader()
-	wsChatManager := ws.NewManager()
-
-	// 创建 mq
-	kafkaClient := kafka.NewKafkaClient(wsChatManager)
+	wsUtils := ws.NewWsUtils()
+	roomManager := ws.NewRoomManager()
+	// TODO 版本更新后 ，kafka 功能待完善
+	kafkaClient := kafka.NewKafkaClient(roomManager)
 
 	if err := dbUtils.AutoMigrate(); err != nil {
 		log.Fatal(err)
 	}
 
-	// ws DI
-	wsSvc := service.NewWsService(repository.NewUmsgRepository(dbUtils), repository.NewUserRepository(dbUtils), kafkaClient, wsChatManager)
-	wsApi := api.NewWsAPI(wsSvc, wsChatManager, wsUtils)
+	// chat DI
+	wsSvc := service.NewWsService(repository.NewUmsgRepository(dbUtils), repository.NewUserRepository(dbUtils), kafkaClient, roomManager, repository.NewGroupsRepo(dbUtils))
+	wsApi := api.NewWsAPI(wsSvc, roomManager, wsUtils)
 
 	// user DI
 	userSvc := service.NewUserService(redisService.NewUserRepository(redisOp), repository.NewUserRepository(dbUtils))
@@ -57,8 +56,7 @@ func main() {
 	router.RegisterGroupsRouter(r, groupApi)
 
 	// 启动异步任务
-	go wsChatManager.Run()
-	go kafkaClient.Consume()
+	// go kafkaClient.Consume()
 
 	if err := r.Run(config.Conf.App.GetAddress()); err != nil {
 		log.Fatal(err)

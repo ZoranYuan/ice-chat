@@ -14,6 +14,7 @@ type groupsRepoImpl struct {
 
 type GroupsRepository interface {
 	Create(group *model.Groups, groupMembers *model.GroupMember) error
+	GroupIsExists(groupId uint64) (bool, error)
 }
 
 func NewGroupsRepo(db *mysql.DBUtils) GroupsRepository {
@@ -45,4 +46,15 @@ func (g *groupsRepoImpl) Create(group *model.Groups, groupMembers *model.GroupMe
 	}
 
 	return err
+}
+
+func (g *groupsRepoImpl) GroupIsExists(groupId uint64) (bool, error) {
+	var count int64
+	err := g.db.Client().Model(&model.Groups{}).Where("group_id = ?", groupId).Count(&count).Error
+
+	if err != nil {
+		return false, err
+	}
+
+	return count == 1, nil
 }

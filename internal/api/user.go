@@ -26,7 +26,7 @@ func NewUserAPI(userSvc *service.UserService) *UserAPI {
 func (u *UserAPI) Login(ctx *gin.Context) {
 	var v request.Login
 	if err := ctx.ShouldBindBodyWithJSON(&v); err != nil {
-		response.BadRequest(ctx)
+		response.BadRequestWithMessage(ctx, "参数错误")
 		ctx.Abort()
 		return
 	}

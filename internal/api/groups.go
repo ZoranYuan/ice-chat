@@ -25,7 +25,7 @@ func NewGroupsApi(groupServ service.GroupsService) GroupApi {
 func (g groupApiImpl) Create(ctx *gin.Context) {
 	var group request.Group
 	if err := ctx.ShouldBindBodyWithJSON(&group); err != nil {
-		response.BadRequest(ctx)
+		response.BadRequestWithMessage(ctx, "参数错误")
 		ctx.Abort()
 		return
 	}

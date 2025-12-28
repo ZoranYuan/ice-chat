@@ -3,7 +3,6 @@ package repository
 import (
 	model "ice-chat/internal/model/eneity"
 	"ice-chat/pkg/mysql"
-	"log"
 )
 
 type userRepo struct {
@@ -38,7 +37,6 @@ func (u *userRepo) IsUserExist(id uint64) bool {
 	err := u.db.Client().Model(&model.User{}).Where("id = ?", id).Count(&count).Error
 
 	if err != nil {
-		log.Printf("failed to check user by : %d, error: %v", id, err)
 		return false
 	}
 

@@ -1,5 +1,5 @@
 package constants
 
 var (
-	KAFKAINITKEY = "kafka_init"
+	WS_EXPIRETIME = 3
 )

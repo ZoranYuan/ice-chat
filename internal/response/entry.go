@@ -41,8 +41,8 @@ func OKWithMsg(c *gin.Context, msg string) {
 	write(c, http.StatusOK, CodeOK, msg, nil)
 }
 
-func BadRequest(c *gin.Context) {
-	write(c, http.StatusBadRequest, CodeBadParam, "bad request", nil)
+func BadRequestWithMessage(c *gin.Context, message string) {
+	write(c, http.StatusBadRequest, CodeBadParam, message, nil)
 }
 
 func Unauthorized(c *gin.Context) {
@@ -54,5 +54,5 @@ func InternalError(c *gin.Context, msg string) {
 }
 
 func Fail(c *gin.Context, bizCode int, msg string) {
-	write(c, http.StatusOK, bizCode, msg, nil)
+	write(c, bizCode, bizCode, msg, nil)
 }

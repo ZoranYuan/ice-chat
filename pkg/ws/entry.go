@@ -7,7 +7,13 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-func GetUpgrader() *websocket.Upgrader {
+type WsUtils struct{}
+
+func NewWsUtils() *WsUtils {
+	return &WsUtils{}
+}
+
+func (wu *WsUtils) GetUpgrader() *websocket.Upgrader {
 	return &websocket.Upgrader{
 		ReadBufferSize:  config.Conf.Ws.ReadBufferSize,
 		WriteBufferSize: config.Conf.Ws.ReadBufferSize,

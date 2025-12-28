@@ -3,8 +3,7 @@ package kafka
 import (
 	"context"
 	"ice-chat/config"
-	"ice-chat/internal/constants"
-	"ice-chat/internal/ws"
+	"ice-chat/pkg/ws"
 	"log"
 	"sync"
 	"time"
@@ -16,12 +15,12 @@ var sy sync.Once
 
 // KafkaClient Kafka客户端
 type KafkaClient struct {
-	writer    *kafka.Writer
-	reader    *kafka.Reader
-	wsManager *ws.ClientManager
+	writer      *kafka.Writer
+	reader      *kafka.Reader
+	roomManager *ws.RoomManager
 }
 
-func NewKafkaClient(wsManager *ws.ClientManager) *KafkaClient {
+func NewKafkaClient(roomManager *ws.RoomManager) *KafkaClient {
 	writer := &kafka.Writer{
 		Addr:         kafka.TCP(config.Conf.Kafka.Brokers...),
 		Topic:        config.Conf.Kafka.Topic,
@@ -43,9 +42,9 @@ func NewKafkaClient(wsManager *ws.ClientManager) *KafkaClient {
 	})
 
 	return &KafkaClient{
-		writer:    writer,
-		reader:    reader,
-		wsManager: wsManager,
+		writer:      writer,
+		reader:      reader,
+		roomManager: roomManager,
 	}
 }
 
@@ -55,16 +54,14 @@ func (k *KafkaClient) Consume() {
 	}()
 
 	for {
-		msg, err := k.reader.ReadMessage(context.Background())
+		_, err := k.reader.ReadMessage(context.Background())
 		if err != nil {
 			log.Printf("kafka fail to consume : %v\n", err)
 			time.Sleep(1 * time.Second)
 			continue
 		}
 
-		if string(msg.Key) != constants.ACCESSKEY {
-			k.wsManager.Broadcast(msg.Value)
-		}
+		// TODO 根据不同的 Topic 去找对应的服务
 	}
 }
 
