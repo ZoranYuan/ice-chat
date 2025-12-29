@@ -7,9 +7,10 @@ import (
 )
 
 type Client struct {
-	conn *websocket.Conn
-	send chan []byte
-	uid  uint64
+	conn     *websocket.Conn
+	send     chan []byte
+	uid      uint64
+	isClosed bool
 }
 
 func NewClient(conn *websocket.Conn, uid uint64, sendBufferSize int) *Client {
@@ -24,9 +25,7 @@ func (c *Client) Read(room *Room, handle func(c *Client, room *Room, msg []byte)
 	for {
 		defer func() {
 			if r := recover(); r != nil {
-				room.RemoveClient(c)
-				c.conn.Close()
-				close(c.send)
+				log.Printf("发生错误 %v", r)
 			}
 		}()
 
@@ -34,7 +33,6 @@ func (c *Client) Read(room *Room, handle func(c *Client, room *Room, msg []byte)
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Printf("读取消息错误：%v", err)
-				panic("close")
 			}
 			break
 		}
@@ -46,16 +44,14 @@ func (c *Client) Read(room *Room, handle func(c *Client, room *Room, msg []byte)
 
 func (c *Client) Write(room *Room) {
 	defer func() {
-		close(c.send)
-		c.conn.Close()
+		_ = c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 		room.RemoveClient(c)
 	}()
 
 	for {
 		msg, ok := <-c.send
+
 		if !ok {
-			// 通道已经关闭了，直接中断当前的 websocket 连接
-			_ = c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 			return
 		}
 
@@ -70,4 +66,12 @@ func (c *Client) Write(room *Room) {
 			return
 		}
 	}
+}
+
+func (c *Client) GetUid() uint64 {
+	return c.uid
+}
+
+func (c *Client) SendMessageToClient(msg []byte) {
+	c.send <- msg
 }

@@ -1,7 +1,6 @@
 package ws
 
 import (
-	"fmt"
 	"sync"
 )
 
@@ -35,21 +34,22 @@ func (r *Room) Run() {
 		case client := <-r.unregister:
 			r.mu.Lock()
 			delete(r.clients, client)
-			close(client.send)
+			if !client.isClosed {
+				close(client.send)
+				client.conn.Close()
+				client.isClosed = true
+			}
 			r.mu.Unlock()
 			if len(r.clients) == 0 {
 				// TODO 交给 Hub 决定是否删除
 			}
 		case message := <-r.broadcast:
 			for client := range r.clients {
-				fmt.Print("start to boradcast message")
 				select {
 				case client.send <- message:
 				default:
 					// 客户端阻塞，直接踢掉
-					close(client.send)
-					client.conn.Close()
-					delete(r.clients, client)
+					r.RemoveClient(client)
 				}
 			}
 		}
@@ -62,10 +62,12 @@ func (r *Room) AddClient(c *Client) {
 
 func (r *Room) RemoveClient(c *Client) {
 	r.unregister <- c
-	c.conn.Close()
-	close(c.send)
 }
 
 func (r *Room) Broadcast(msg []byte) {
 	r.broadcast <- msg
+}
+
+func (r *Room) GetRoomId() uint64 {
+	return r.id
 }

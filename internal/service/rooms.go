@@ -7,7 +7,8 @@ import (
 	model "ice-chat/internal/model/eneity"
 	"ice-chat/internal/model/request"
 	"ice-chat/internal/repository"
-	"ice-chat/pkg/redis"
+	my_redis "ice-chat/pkg/redis"
+	"strconv"
 	"time"
 )
 
@@ -17,10 +18,10 @@ type RoomsService interface {
 
 type roomsServImpl struct {
 	roomsRepo repository.RoomsRepository
-	redisOp   redis.RedisOperator
+	redisOp   my_redis.RedisOperator
 }
 
-func NewGroupsService(roomsRepo repository.RoomsRepository, redisOp redis.RedisOperator) RoomsService {
+func NewGroupsService(roomsRepo repository.RoomsRepository, redisOp my_redis.RedisOperator) RoomsService {
 	return &roomsServImpl{
 		roomsRepo: roomsRepo,
 		redisOp:   redisOp,
@@ -28,7 +29,7 @@ func NewGroupsService(roomsRepo repository.RoomsRepository, redisOp redis.RedisO
 }
 
 func (r *roomsServImpl) Create(room request.Room, uid uint64) (error, uint64) {
-	ok, err := r.redisOp.SetNx(context.Background(), constants.USER_CREATE_GROUP, 60*time.Second)
+	ok, err := r.redisOp.SetNx(context.Background(), constants.USER_CREATE_GROUP_LOCK+strconv.FormatUint(uid, 10), "", 60*time.Second)
 	if err != nil {
 		return err, 0
 	}

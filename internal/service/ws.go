@@ -1,15 +1,24 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"ice-chat/internal/constants"
+	"ice-chat/internal/limter"
 	"ice-chat/internal/model/request"
 	"ice-chat/internal/mq/kafka"
 	"ice-chat/internal/repository"
+	my_redis "ice-chat/pkg/redis"
 	"ice-chat/pkg/ws"
+	"ice-chat/scripts"
 	"log"
+	"strings"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 type wsServiceImpl struct {
@@ -18,21 +27,24 @@ type wsServiceImpl struct {
 	userRepo  repository.UserRepository
 	wsManager *ws.RoomManager
 	roomsRepo repository.RoomsRepository
+	redisOp   my_redis.RedisOperator
 }
 
 type WsService interface {
 	GroupIsExists(groupId uint64) (bool, error)
 	ChatHandler(c *ws.Client, room *ws.Room, msg []byte)
 	WatchHandler(c *ws.Client, room *ws.Room, msg []byte)
+	SynchronizeVideoState(c *ws.Client, room *ws.Room)
 }
 
-func NewWsService(msgRepo repository.MessageRepository, userRepo repository.UserRepository, kafka *kafka.KafkaClient, wsManager *ws.RoomManager, roomsRepo repository.RoomsRepository) WsService {
+func NewWsService(msgRepo repository.MessageRepository, userRepo repository.UserRepository, kafka *kafka.KafkaClient, wsManager *ws.RoomManager, roomsRepo repository.RoomsRepository, redisOp my_redis.RedisOperator) WsService {
 	return &wsServiceImpl{
 		msgRepo:   msgRepo,
 		kafka:     kafka,
 		userRepo:  userRepo,
 		wsManager: wsManager,
 		roomsRepo: roomsRepo,
+		redisOp:   redisOp,
 	}
 }
 
@@ -41,33 +53,101 @@ func (wss *wsServiceImpl) GroupIsExists(groupId uint64) (bool, error) {
 }
 
 func (wss *wsServiceImpl) handle(c *ws.Client, room *ws.Room, msg []byte) {
-	_, mainCancel := context.WithTimeout(context.Background(), time.Duration(constants.WS_EXPIRETIME)*time.Second)
+	_, mainCancel := context.WithTimeout(context.Background(), time.Duration(constants.WS_TIMEOUT_EXPIRETIME)*time.Second)
 	defer mainCancel()
-
-	// TODO 这里暂时只做一个广播的作用,需要将消息存储到 db 中
-	var message request.Message
-
-	if err := json.Unmarshal(msg, &message); err != nil {
-		// 消息不符合 Message 结构
-		log.Printf("非法消息: %v", err)
-		room.RemoveClient(c)
-		return
-	}
-
-	// 可选：进一步校验字段
-	if message.Content == "" {
-		log.Println("消息内容为空，忽略")
-		return
-	}
-
+	// TODO 这里暂时只做一个广播的作用
 	room.Broadcast(msg)
 }
 
 func (wss *wsServiceImpl) ChatHandler(c *ws.Client, room *ws.Room, msg []byte) {
+	var message request.Message
+
+	// 单机限流
+	limter := limter.NewLimter(5, 10)
+	if allow := limter.Allow(c.GetUid()); !allow {
+		return
+	}
+
+	if err := json.Unmarshal(msg, &message); err != nil {
+		log.Printf("非法消息: %v", err)
+		ws.Fail(c, "消息格式错误")
+		return
+	}
+
+	// 可选：进一步校验字段
+	content := strings.TrimSpace(message.Content)
+	if content == "" {
+		return
+	}
+
+	if len(content) > 500 {
+		ws.Fail(c, "消息过长")
+		return
+	}
+
 	wss.handle(c, room, msg)
 }
 
 func (wss *wsServiceImpl) WatchHandler(c *ws.Client, room *ws.Room, msg []byte) {
-	wss.handle(c, room, msg)
+	// TODO 将状态同步到 redis 中
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(constants.REDIS_TIMEOUT)*time.Millisecond)
+	defer cancel()
 
+	key := fmt.Sprintf("%s%d:%d", constants.VIDEO_CONTROL_LOCK, c.GetUid(), room.GetRoomId())
+	// 限流锁
+	if ok, _ := wss.redisOp.SetNx(ctx, key, "", time.Duration(constants.VIDEO_CONTROL_INTERVAL)*time.Second); !ok {
+		c.SendMessageToClient([]byte("操作太频繁啦"))
+		return
+	}
+
+	var message request.VideoState
+	decoder := json.NewDecoder(bytes.NewReader(msg))
+	decoder.DisallowUnknownFields()
+
+	if err := decoder.Decode(&message); err != nil {
+		log.Printf("failed to marsha1: %v", err)
+		ws.Fail(c, "非法请求")
+		return
+	}
+
+	if message.TimeStamp <= 0 {
+		// 非法参数
+		ws.Fail(c, "非法请求")
+		return
+	}
+
+	// TODO 原子更新状态
+	tsKey := fmt.Sprintf("%s%d", constants.VIDEO_LATEST_TIMESTAMP, room.GetRoomId())
+	stateKey := fmt.Sprintf("%s%d", constants.VIDEO_ROOM_STATE, room.GetRoomId())
+	res, err := wss.redisOp.RunScript(ctx, scripts.UpdateLatestTimestamp, []string{tsKey, stateKey}, constants.VIDEO_STATE_TIME, message.TimeStamp, string(msg))
+	if err != nil {
+		log.Printf("lua script failed: %v", err)
+		ws.Fail(c, "服务异常")
+		return
+	}
+
+	if res == 0 {
+		// 旧指令，正常丢弃
+		return
+	}
+
+	// 广播
+	wss.handle(c, room, msg)
+}
+
+func (wss *wsServiceImpl) SynchronizeVideoState(c *ws.Client, room *ws.Room) {
+	var stateBytes []byte
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	stateKey := fmt.Sprintf("%s%d", constants.VIDEO_ROOM_STATE, room.GetRoomId())
+	if err := wss.redisOp.GetBytes(ctx, stateKey, &stateBytes); err != nil {
+		if !errors.Is(err, redis.Nil) {
+			ws.Fail(c, "同步失败")
+		} else {
+			ws.Ok(c, nil)
+		}
+		return
+	}
+
+	ws.Ok(c, stateBytes)
 }

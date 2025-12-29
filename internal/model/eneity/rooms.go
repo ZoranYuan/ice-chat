@@ -8,8 +8,8 @@ import (
 )
 
 type Rooms struct {
-	RoomID     uint64         `gorm:"column:group_id;type:bigint unsigned;not null;primaryKey" json:"groupId"` // 群组ID
-	RoomName   string         `json:"groupName" gorm:"column:group_name;not null"`                             // 群组名称
+	RoomID     uint64         `gorm:"column:room_id;type:bigint unsigned;not null;primaryKey" json:"groupId"` // 群组ID
+	RoomName   string         `json:"roomName" gorm:"column:room_name;not null"`                              // 群组名称
 	Avatar     string         `json:"avatar" gorm:"avatar"`
 	Desc       string         `json:"desc" gorm:"avatar"`
 	CreateUser uint64         `json:"createUser" gorm:"createUser;not null"`

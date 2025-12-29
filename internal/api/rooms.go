@@ -2,28 +2,29 @@ package api
 
 import (
 	"ice-chat/internal/model/request"
+	res "ice-chat/internal/model/response"
 	"ice-chat/internal/response"
 	"ice-chat/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
 
-type GroupApi interface {
+type RoomsApi interface {
 	Create(ctx *gin.Context)
 }
 
-type groupApiImpl struct {
-	groupServ service.GroupsService
+type roomsApiImpl struct {
+	groupServ service.RoomsService
 }
 
-func NewGroupsApi(groupServ service.GroupsService) GroupApi {
-	return &groupApiImpl{
+func NewRoomsApi(groupServ service.RoomsService) RoomsApi {
+	return &roomsApiImpl{
 		groupServ: groupServ,
 	}
 }
 
-func (g groupApiImpl) Create(ctx *gin.Context) {
-	var group request.Group
+func (r roomsApiImpl) Create(ctx *gin.Context) {
+	var group request.Room
 	if err := ctx.ShouldBindBodyWithJSON(&group); err != nil {
 		response.BadRequestWithMessage(ctx, "参数错误")
 		ctx.Abort()
@@ -38,14 +39,14 @@ func (g groupApiImpl) Create(ctx *gin.Context) {
 		return
 	}
 
-	err, groupId := g.groupServ.Create(group, uid)
+	err, roomId := r.groupServ.Create(group, uid)
 	if err != nil {
 		response.Fail(ctx, 201, err.Error())
 		ctx.Abort()
 		return
 	}
 
-	response.OKWithData(ctx, gin.H{
-		`groupId`: groupId,
+	response.OKWithData(ctx, res.Room{
+		RoomID: roomId,
 	})
 }

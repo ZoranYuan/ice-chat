@@ -40,7 +40,7 @@ func (r *groupsRepoImpl) Create(room *model.Rooms, roomsMembers *model.RoomsMemb
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
-			return errors.New("group already exists")
+			return errors.New("room already exists")
 		}
 		return err
 	}
@@ -50,7 +50,7 @@ func (r *groupsRepoImpl) Create(room *model.Rooms, roomsMembers *model.RoomsMemb
 
 func (r *groupsRepoImpl) GroupIsExists(roomId uint64) (bool, error) {
 	var count int64
-	err := r.db.Client().Model(&model.Rooms{}).Where("group_id = ?", roomId).Count(&count).Error
+	err := r.db.Client().Model(&model.Rooms{}).Where("room_id = ?", roomId).Count(&count).Error
 
 	if err != nil {
 		return false, err

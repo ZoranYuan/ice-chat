@@ -4,7 +4,7 @@ import (
 	"ice-chat/config"
 	"ice-chat/internal/constants"
 	"ice-chat/internal/model/request"
-	"ice-chat/internal/model/response"
+	res "ice-chat/internal/model/response"
 	"ice-chat/internal/redisService"
 	"ice-chat/internal/repository"
 	"ice-chat/pkg/jwtUtils"
@@ -27,7 +27,7 @@ func NewUserService(userRedis redisService.UserReids, userRepo repository.UserRe
 	}
 }
 
-func (us *UserService) Login(v request.Login) (*response.Login, error) {
+func (us *UserService) Login(v request.Login) (*res.Login, error) {
 	user, err := us.userRepo.FindUserByEmail(v.Email)
 	if err != nil {
 		return nil, err
@@ -51,7 +51,7 @@ func (us *UserService) Login(v request.Login) (*response.Login, error) {
 	accessKey := constants.ACCESSKEY + strconv.FormatUint(claims.UserId, 10) + ":" + claims.JTI
 	us.userRedis.StoreAccessKey(accessKey)
 
-	var res *response.Login = &response.Login{
+	var res *res.Login = &res.Login{
 		Token:    token,
 		UserId:   user.UserId,
 		UserName: user.Username,
@@ -60,3 +60,5 @@ func (us *UserService) Login(v request.Login) (*response.Login, error) {
 
 	return res, nil
 }
+
+func (us *UserService) Upload(video request.Video)

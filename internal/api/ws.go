@@ -31,7 +31,7 @@ func NewWsAPI(wsSvc service.WsService, roomManager *ws.RoomManager, wsUtils *ws.
 }
 
 func (w *wsApiImpl) handle(ctx *gin.Context, handleFn func(c *ws.Client, room *ws.Room, msg []byte)) {
-	v := ctx.Param("groupId")
+	v := ctx.Param("roomId")
 	uid, exists := ctx.Get("uid")
 	if !exists {
 		response.Unauthorized(ctx)
@@ -39,14 +39,14 @@ func (w *wsApiImpl) handle(ctx *gin.Context, handleFn func(c *ws.Client, room *w
 		return
 	}
 
-	groupId, err := strconv.ParseUint(v, 10, 64)
+	roomId, err := strconv.ParseUint(v, 10, 64)
 	if err != nil {
 		response.BadRequestWithMessage(ctx, "参数错误")
 		ctx.Abort()
 		return
 	}
 
-	if exists, _ := w.wsSvc.GroupIsExists(groupId); !exists {
+	if exists, _ := w.wsSvc.GroupIsExists(roomId); !exists {
 		response.BadRequestWithMessage(ctx, "房间号不存在")
 		// TODO 可以额外处理下 err
 		ctx.Abort()
@@ -62,10 +62,14 @@ func (w *wsApiImpl) handle(ctx *gin.Context, handleFn func(c *ws.Client, room *w
 
 	// 获取 room
 	client := ws.NewClient(conn, uid.(uint64), config.Conf.Ws.WriteBufferSize)
-	room := w.roomManager.GetRoom(groupId)
+
+	// 对于新用户来说，需要直接同步最新的数据
+	room := w.roomManager.GetRoom(roomId)
 	room.AddClient(client)
 	go client.Write(room)
 	go client.Read(room, handleFn)
+	// 同步最新的消息
+	w.wsSvc.SynchronizeVideoState(client, room)
 }
 
 func (w *wsApiImpl) Chat(ctx *gin.Context) {

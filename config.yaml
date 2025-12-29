@@ -54,3 +54,9 @@ jwt:
   secret: eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoiSm9obiIsImFkbWluIjp0cnVlfQ.4KEFF3vATW4jwlorHE25GkQETtWabPxwZzaiZk7vuUS8TnxkTyoTfoI3LiujYwyuUcv1cpgrOOpBg_PlXfRdwg
   access_token_expire_duration: 2h
   refresh_token_expire_duration: 72h
+
+oss:
+  end_point: "localhost:9000"
+  access_key_id: "syb8e9f7d6c5b4a3s2d1f9g8h7j6k5l4m3n2b1v0z9x8y7w6"
+  secret_access_key: "ice7r8t9y0u8i7o6p5a4s3d2f1g0h9j8k7l6m5n4b3v2c1x0"
+  secure: true

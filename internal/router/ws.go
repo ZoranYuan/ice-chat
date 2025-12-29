@@ -9,6 +9,6 @@ import (
 
 func RegisterWsRouter(r *gin.Engine, wsApi api.WsApi) {
 	wr := r.Group("/ws").Use(middleware.AuthMiddleware())
-	wr.GET("/chat/:groupId", wsApi.Chat)
-	wr.GET("/watch/:groupId", wsApi.Watch)
+	wr.GET("/chat/:roomId", wsApi.Chat)
+	wr.GET("/watch/:roomId", wsApi.Watch)
 }

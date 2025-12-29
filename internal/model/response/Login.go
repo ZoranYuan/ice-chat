@@ -1,4 +1,4 @@
-package response
+package res
 
 type Login struct {
 	Token    string `json:"token"`
