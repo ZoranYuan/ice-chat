@@ -10,6 +10,7 @@ import (
 	"ice-chat/pkg/jwtUtils"
 	"strconv"
 
+	"github.com/minio/minio-go/v7"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -17,13 +18,15 @@ import (
 type UserService struct {
 	userRedis redisService.UserReids
 	userRepo  repository.UserRepository
+	minio     *minio.Client
 }
 
 // NewUserService 构造函数：注入Redis操作接口
-func NewUserService(userRedis redisService.UserReids, userRepo repository.UserRepository) *UserService {
+func NewUserService(userRedis redisService.UserReids, userRepo repository.UserRepository, minio *minio.Client) *UserService {
 	return &UserService{
 		userRedis: userRedis,
 		userRepo:  userRepo,
+		minio:     minio,
 	}
 }
 
@@ -60,5 +63,3 @@ func (us *UserService) Login(v request.Login) (*res.Login, error) {
 
 	return res, nil
 }
-
-func (us *UserService) Upload(video request.Video)

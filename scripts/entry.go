@@ -13,4 +13,14 @@ var (
 		end 
 			return 0
 	`)
+
+	UpdateUploadChunkIdx = redis.NewScript(`
+		local current = redis.call("GET", KEYS[1])
+		if not current
+		then
+			redis.call("SET", KEYS[1], 0, "EX", ARGV[1])
+			return 0
+		end
+			return current
+	`)
 )

@@ -45,6 +45,10 @@ func BadRequestWithMessage(c *gin.Context, message string) {
 	write(c, http.StatusBadRequest, CodeBadParam, message, nil)
 }
 
+func BadRequestWithData(c *gin.Context, data any) {
+	write(c, http.StatusBadRequest, CodeBadParam, "", data)
+}
+
 func Unauthorized(c *gin.Context) {
 	write(c, http.StatusUnauthorized, CodeUnauthorized, "unauthored", nil)
 }

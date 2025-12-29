@@ -8,12 +8,14 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
-func InitMinio(ossConfig config.OssConfig) {
+func NewMinioClient(ossConfig config.OssConfig) *minio.Client {
 	minioClient, err := minio.New(ossConfig.EndPoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(ossConfig.AccessKeyID, ossConfig.SecretAccessKey, ""),
-		Secure: useSSL,
+		Secure: ossConfig.Secure,
 	})
 	if err != nil {
 		log.Fatalln(err)
 	}
+
+	return minioClient
 }

@@ -7,4 +7,5 @@ var (
 	VIDEO_CONTROL_LOCK     = "video:room:control:"
 	VIDEO_ROOM_STATE       = "video:room:state:"
 	VIDEO_LATEST_TIMESTAMP = "video:room:latest:timestamp:"
+	UPLOAD_CHUNK_IDX       = "upload_chunk_idx:"
 )

@@ -4,6 +4,7 @@ import (
 	"ice-chat/config"
 	"ice-chat/internal/api"
 	"ice-chat/internal/mq/kafka"
+	"ice-chat/internal/oss"
 	"ice-chat/internal/redisService"
 	"ice-chat/internal/repository"
 	"ice-chat/internal/router"
@@ -25,7 +26,7 @@ func main() {
 	snowflake.Init()
 	redisOp := my_redis.GetRedisOp()
 	dbUtils := mysql.GetDBUtils() // db 只注入 resp 业务层中
-
+	minioClient := oss.NewMinioClient(config.Conf.Oss)
 	// 创建 ws 服务
 	wsUtils := ws.NewWsUtils()
 	roomManager := ws.NewRoomManager()
@@ -41,20 +42,24 @@ func main() {
 	wsApi := api.NewWsAPI(wsSvc, roomManager, wsUtils)
 
 	// user DI
-	userSvc := service.NewUserService(redisService.NewUserRepository(redisOp), repository.NewUserRepository(dbUtils))
+	userSvc := service.NewUserService(redisService.NewUserRepository(redisOp), repository.NewUserRepository(dbUtils), minioClient)
 	userApi := api.NewUserAPI(userSvc)
 
 	// group DI
-	groupSvc := service.NewGroupsService(repository.NewRoomsRepo(dbUtils), redisOp)
-	groupApi := api.NewRoomsApi(groupSvc)
+	roomSev := service.NewGroupsService(repository.NewRoomsRepo(dbUtils), redisOp)
+	roomApi := api.NewRoomsApi(roomSev)
+
+	// upload
+	uploadSev := service.NewUploadService(repository.NewUserRepository(dbUtils), minioClient, redisOp)
+	uploadApi := api.NewUploadApi(uploadSev)
 
 	r := gin.Default()
 
 	router.RegisterHeartCheckRouter(r)
 	router.RegisterUserRouter(r, userApi)
 	router.RegisterWsRouter(r, wsApi)
-	router.RegisterRoomsRouter(r, groupApi)
-
+	router.RegisterRoomsRouter(r, roomApi)
+	router.RegisterUploadRouter(r, uploadApi)
 	// 启动异步任务
 	// go kafkaClient.Consume()
 

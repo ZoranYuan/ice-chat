@@ -18,7 +18,7 @@ type roomsApiImpl struct {
 }
 
 func NewRoomsApi(groupServ service.RoomsService) RoomsApi {
-	return &roomsApiImpl{
+	return roomsApiImpl{
 		groupServ: groupServ,
 	}
 }
