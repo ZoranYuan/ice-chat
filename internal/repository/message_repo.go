@@ -3,18 +3,18 @@ package repository
 import (
 	model "ice-chat/internal/model/eneity"
 	"ice-chat/internal/model/request"
-	"ice-chat/pkg/mysql"
+	my_mysql "ice-chat/pkg/mysql"
 )
 
 type msgRepo struct {
-	db *mysql.DBUtils
+	db *my_mysql.DBUtils
 }
 
 type MessageRepository interface {
 	Add(message request.Message) error
 }
 
-func NewUmsgRepository(db *mysql.DBUtils) MessageRepository {
+func NewUmsgRepository(db *my_mysql.DBUtils) MessageRepository {
 	return &msgRepo{
 		db: db,
 	}

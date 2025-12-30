@@ -28,6 +28,7 @@ type wsServiceImpl struct {
 	wsManager *ws.RoomManager
 	roomsRepo repository.RoomsRepository
 	redisOp   my_redis.RedisOperator
+	limter    *limter.Limter
 }
 
 type WsService interface {
@@ -37,7 +38,13 @@ type WsService interface {
 	SynchronizeVideoState(c *ws.Client, room *ws.Room)
 }
 
-func NewWsService(msgRepo repository.MessageRepository, userRepo repository.UserRepository, kafka *kafka.KafkaClient, wsManager *ws.RoomManager, roomsRepo repository.RoomsRepository, redisOp my_redis.RedisOperator) WsService {
+func NewWsService(msgRepo repository.MessageRepository,
+	userRepo repository.UserRepository,
+	kafka *kafka.KafkaClient,
+	wsManager *ws.RoomManager,
+	roomsRepo repository.RoomsRepository,
+	redisOp my_redis.RedisOperator,
+) WsService {
 	return &wsServiceImpl{
 		msgRepo:   msgRepo,
 		kafka:     kafka,
@@ -45,11 +52,12 @@ func NewWsService(msgRepo repository.MessageRepository, userRepo repository.User
 		wsManager: wsManager,
 		roomsRepo: roomsRepo,
 		redisOp:   redisOp,
+		limter:    limter.NewLimter(5, 10),
 	}
 }
 
 func (wss *wsServiceImpl) GroupIsExists(groupId uint64) (bool, error) {
-	return wss.roomsRepo.GroupIsExists(groupId)
+	return wss.roomsRepo.RoomIsExists(groupId)
 }
 
 func (wss *wsServiceImpl) handle(c *ws.Client, room *ws.Room, msg []byte) {
@@ -63,8 +71,7 @@ func (wss *wsServiceImpl) ChatHandler(c *ws.Client, room *ws.Room, msg []byte) {
 	var message request.Message
 
 	// 单机限流
-	limter := limter.NewLimter(5, 10)
-	if allow := limter.Allow(c.GetUid()); !allow {
+	if allow := wss.limter.Allow(c.GetUid()); !allow {
 		return
 	}
 
@@ -94,7 +101,7 @@ func (wss *wsServiceImpl) WatchHandler(c *ws.Client, room *ws.Room, msg []byte) 
 	defer cancel()
 
 	key := fmt.Sprintf("%s%d:%d", constants.VIDEO_CONTROL_LOCK, c.GetUid(), room.GetRoomId())
-	// 限流锁
+	// 限流锁, 这里前端会做防抖处理
 	if ok, _ := wss.redisOp.SetNx(ctx, key, "", time.Duration(constants.VIDEO_CONTROL_INTERVAL)*time.Second); !ok {
 		c.SendMessageToClient([]byte("操作太频繁啦"))
 		return

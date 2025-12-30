@@ -1,4 +1,4 @@
-package mysql
+package my_mysql
 
 import (
 	"ice-chat/config"

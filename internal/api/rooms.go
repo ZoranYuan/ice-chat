@@ -10,43 +10,73 @@ import (
 )
 
 type RoomsApi interface {
-	Create(ctx *gin.Context)
+	CreateRoom(c *gin.Context)
+	JoinRoom(c *gin.Context)
 }
 
 type roomsApiImpl struct {
-	groupServ service.RoomsService
+	roomServ service.RoomsService
 }
 
 func NewRoomsApi(groupServ service.RoomsService) RoomsApi {
-	return roomsApiImpl{
-		groupServ: groupServ,
+	return &roomsApiImpl{
+		roomServ: groupServ,
 	}
 }
 
-func (r roomsApiImpl) Create(ctx *gin.Context) {
-	var group request.Room
-	if err := ctx.ShouldBindBodyWithJSON(&group); err != nil {
-		response.BadRequestWithMessage(ctx, "参数错误")
-		ctx.Abort()
+func (r *roomsApiImpl) CreateRoom(c *gin.Context) {
+	var room request.Room
+	if err := c.ShouldBindBodyWithJSON(&room); err != nil {
+		response.BadRequestWithMessage(c, "参数错误")
+		c.Abort()
 		return
 	}
 
-	v, exists := ctx.Get("uid")
+	v, exists := c.Get("uid")
 	uid, ok := v.(uint64)
 	if !exists || !ok {
-		response.Unauthorized(ctx)
-		ctx.Abort()
+		response.Unauthorized(c)
+		c.Abort()
 		return
 	}
 
-	err, roomId := r.groupServ.Create(group, uid)
+	err, roomId, joinCode := r.roomServ.CreateRoom(room, uid)
 	if err != nil {
-		response.Fail(ctx, 201, err.Error())
-		ctx.Abort()
+		response.Fail(c, 201, err.Error())
+		c.Abort()
 		return
 	}
 
-	response.OKWithData(ctx, res.Room{
-		RoomID: roomId,
+	response.OKWithData(c, res.Room{
+		RoomID:   roomId,
+		JoinCode: joinCode,
+	})
+}
+
+func (r *roomsApiImpl) JoinRoom(c *gin.Context) {
+	joinCode := c.Param("joinCode")
+	if joinCode == "" || len(joinCode) != 6 {
+		response.BadRequestWithMessage(c, "无效的验证码")
+		c.Abort()
+		return
+	}
+
+	v, exists := c.Get("uid")
+	uid, ok := v.(uint64)
+	if !exists || !ok {
+		response.Unauthorized(c)
+		c.Abort()
+		return
+	}
+
+	roomId, err := r.roomServ.JoinRoom(uid, joinCode)
+	if err != nil {
+		response.Fail(c, 201, err.Error())
+		c.Abort()
+		return
+	}
+
+	response.OKWithData(c, gin.H{
+		"roomId": roomId,
 	})
 }

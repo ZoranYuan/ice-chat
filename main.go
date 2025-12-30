@@ -9,7 +9,7 @@ import (
 	"ice-chat/internal/repository"
 	"ice-chat/internal/router"
 	"ice-chat/internal/service"
-	"ice-chat/pkg/mysql"
+	my_mysql "ice-chat/pkg/mysql"
 	my_redis "ice-chat/pkg/redis"
 	"ice-chat/pkg/snowflake"
 	"ice-chat/pkg/ws"
@@ -22,10 +22,10 @@ func main() {
 	// 初始化配置
 	config.Init()
 	my_redis.Init()
-	mysql.Init()
+	my_mysql.Init()
 	snowflake.Init()
 	redisOp := my_redis.GetRedisOp()
-	dbUtils := mysql.GetDBUtils() // db 只注入 resp 业务层中
+	dbUtils := my_mysql.GetDBUtils() // db 只注入 resp 业务层中
 	minioClient := oss.NewMinioClient(config.Conf.Oss)
 	// 创建 ws 服务
 	wsUtils := ws.NewWsUtils()
@@ -45,8 +45,9 @@ func main() {
 	userSvc := service.NewUserService(redisService.NewUserRepository(redisOp), repository.NewUserRepository(dbUtils), minioClient)
 	userApi := api.NewUserAPI(userSvc)
 
-	// group DI
-	roomSev := service.NewGroupsService(repository.NewRoomsRepo(dbUtils), redisOp)
+	// room DI
+	roomRedisService := redisService.NewRoomRedisService(redisOp)
+	roomSev := service.NewRoomService(repository.NewRoomsRepo(dbUtils), roomRedisService)
 	roomApi := api.NewRoomsApi(roomSev)
 
 	// upload

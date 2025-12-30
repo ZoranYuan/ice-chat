@@ -2,11 +2,11 @@ package repository
 
 import (
 	model "ice-chat/internal/model/eneity"
-	"ice-chat/pkg/mysql"
+	my_mysql "ice-chat/pkg/mysql"
 )
 
 type userRepo struct {
-	db *mysql.DBUtils
+	db *my_mysql.DBUtils
 }
 
 type UserRepository interface {
@@ -14,7 +14,7 @@ type UserRepository interface {
 	IsUserExist(id uint64) bool
 }
 
-func NewUserRepository(db *mysql.DBUtils) UserRepository {
+func NewUserRepository(db *my_mysql.DBUtils) UserRepository {
 	return &userRepo{db: db}
 }
 

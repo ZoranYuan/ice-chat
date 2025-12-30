@@ -1,4 +1,4 @@
-package mysql
+package my_mysql
 
 import (
 	model "ice-chat/internal/model/eneity"

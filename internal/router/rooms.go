@@ -9,5 +9,6 @@ import (
 
 func RegisterRoomsRouter(r *gin.Engine, roomsApi api.RoomsApi) {
 	gr := r.Group("/room").Use(middleware.AuthMiddleware())
-	gr.POST("/create", roomsApi.Create)
+	gr.POST("/create", roomsApi.CreateRoom)
+	gr.POST("/join/:joinCode", roomsApi.JoinRoom)
 }
