@@ -10,4 +10,6 @@ var (
 	UPLOAD_CHUNK_IDX       = "upload_chunk_idx:"
 	ROOM_JOIN_UID_LOCK     = "room:join:uid:"
 	ROOM_JOINCODE          = "room:joincode:"
+	VIDEO_TRANSCODE_KEY    = "videos:transcode:"
+	VIDEO_STATE_ROOM_INIT  = "video:room:state:init:"
 )

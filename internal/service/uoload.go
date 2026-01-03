@@ -2,18 +2,21 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"ice-chat/internal/constants"
 	cerror "ice-chat/internal/model/error"
 	"ice-chat/internal/model/request"
+	mq_eneity "ice-chat/internal/mq/entity"
+	"ice-chat/internal/mq/kafka"
 	"ice-chat/internal/repository"
 	my_redis "ice-chat/pkg/redis"
 	"ice-chat/scripts"
 	"io"
+	"log"
 	"os"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/minio/minio-go/v7"
 )
 
@@ -22,68 +25,96 @@ type UploadService interface {
 	Upload(uploadId string, uploadChunkIdx int) error
 	BreakPoint(uploadId string) (int64, error)
 }
+
 type uploadServiceImpl struct {
-	userRepo repository.UserRepository
-	minio    *minio.Client
-	redisOp  my_redis.RedisOperator
+	userRepo    repository.UserRepository
+	minio       *minio.Client
+	redisOp     my_redis.RedisOperator
+	kafkaClient *kafka.KafkaClient
 }
 
-func NewUploadService(userRepo repository.UserRepository, minio *minio.Client, redisOp my_redis.RedisOperator) UploadService {
+func NewUploadService(userRepo repository.UserRepository, minio *minio.Client, redisOp my_redis.RedisOperator, kafkaClient *kafka.KafkaClient) UploadService {
 	return &uploadServiceImpl{
-		userRepo: userRepo,
-		minio:    minio,
-		redisOp:  redisOp,
+		userRepo:    userRepo,
+		minio:       minio,
+		redisOp:     redisOp,
+		kafkaClient: kafkaClient,
 	}
 }
 
 func (us *uploadServiceImpl) Merge(mergeInfo request.UploadMerge) error {
-	// TODO 检索出路径下的所有文件，收集，写入到一个文件中，并且上传到 Minio 中
-	tmpDir := fmt.Sprintf("%s/%s", constants.UPLOAD_TEMP_DIR, mergeInfo.UploadId)
-	tmpFile := fmt.Sprintf("%s/%s.merge", constants.MERGE_TEMP_DIR, mergeInfo.UploadId)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
-	out, _ := os.Create(tmpFile)
-	defer out.Close()
-
-	for i := 0; i < mergeInfo.TotalChunks; i++ {
-		part := fmt.Sprintf("%s/%d", tmpDir, i)
-		in, err := os.Open(part)
-
-		if err != nil {
-			// TODO 让前端重新传递这个切片
-			return &cerror.ChunkMissingError{MissingIndex: i}
-		}
-
-		if _, err := io.Copy(out, in); err != nil {
-			in.Close()
-			return err
-		}
-		in.Close()
+	tempDir := fmt.Sprintf("%s/%s", constants.UPLOAD_TEMP_DIR, mergeInfo.UploadId)
+	if _, err := os.Stat(tempDir); os.IsNotExist(err) {
+		return fmt.Errorf("upload temp dir does not exist: %s", tempDir)
 	}
 
-	// TODO 上传到 Minio
-	f, _ := os.Open(tmpFile)
-	stat, _ := f.Stat()
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil && !os.IsNotExist(err) {
+			log.Println("Failed to remove temp file:", tempDir, err)
+		}
+	}()
 
-	objectKey := fmt.Sprintf("videos/%s.mp4", uuid.New().String())
-
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-	defer cancel()
-	if _, err := us.minio.PutObject(
-		ctx,
-		"videos",
-		objectKey,
-		f,
-		stat.Size(),
-		minio.PutObjectOptions{ContentType: "video/mp4"},
-	); err != nil {
+	// 确保合并目录存在
+	if err := os.MkdirAll(constants.MERGE_TEMP_DIR, 0755); err != nil {
 		return err
 	}
 
-	// TODO 将切片缓存从 redis 中删除
-	defer cancel()
-	idxKey := fmt.Sprintf("%s%s", constants.UPLOAD_CHUNK_IDX, mergeInfo.UploadId)
-	err := us.redisOp.Del(ctx, idxKey)
-	return err
+	tmpFile := fmt.Sprintf("%s/%s.tmp", constants.MERGE_TEMP_DIR, mergeInfo.UploadId)
+	outFile := fmt.Sprintf("%s/%s.mp4", constants.MERGE_TEMP_DIR, mergeInfo.UploadId)
+
+	// 创建临时文件并检查错误
+	out, err := os.Create(tmpFile)
+	if err != nil {
+		return fmt.Errorf("failed to create tmp file: %w", err)
+	}
+	defer out.Close()
+
+	// 合并所有 chunk
+	for i := 0; i < mergeInfo.TotalChunks; i++ {
+		part := fmt.Sprintf("%s/%d", tempDir, i)
+		in, err := os.Open(part)
+		if err != nil {
+			return &cerror.ChunkMissingError{MissingIndex: i}
+		}
+
+		n, err := io.Copy(out, in)
+		in.Close()
+		if err != nil {
+			return fmt.Errorf("failed to copy chunk %d: %w", i, err)
+		}
+		if n == 0 {
+			return fmt.Errorf("chunk %d is empty", i)
+		}
+	}
+
+	// 检查合并后文件大小
+	info, err := out.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to stat tmp file: %w", err)
+	}
+	if info.Size() == 0 {
+		return fmt.Errorf("merged file is empty")
+	}
+
+	// 发送转码任务
+	transcodeTask := mq_eneity.TranscodeTask{
+		TmepFile: tmpFile,
+		OutFile:  outFile,
+		RoomID:   mergeInfo.RoomId,
+		UploadID: mergeInfo.UploadId,
+	}
+	msg, err := json.Marshal(transcodeTask)
+	if err != nil {
+		return err
+	}
+	if err := us.kafkaClient.Produce(ctx, msg, "video-transcode"); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (us *uploadServiceImpl) BreakPoint(uploadId string) (int64, error) {
@@ -99,5 +130,5 @@ func (us *uploadServiceImpl) Upload(uploadId string, uploadChunkIdx int) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(constants.REDIS_TIMEOUT)*time.Millisecond)
 	defer cancel()
 	idxKey := fmt.Sprintf("%s%s", constants.UPLOAD_CHUNK_IDX, uploadId)
-	return us.redisOp.Set(ctx, idxKey, uploadChunkIdx, time.Duration(constants.UPLOAD_CHUNK_IDX_TIMEOUT))
+	return us.redisOp.Set(ctx, idxKey, uploadChunkIdx, time.Duration(constants.UPLOAD_CHUNK_IDX_TIMEOUT)*time.Hour)
 }

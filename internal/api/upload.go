@@ -9,6 +9,7 @@ import (
 	"ice-chat/internal/response"
 	"ice-chat/internal/service"
 	"ice-chat/utils"
+	"log"
 	"os"
 	"strconv"
 	"time"
@@ -60,7 +61,7 @@ func (u *uploadApiImpl) UploadInit(c *gin.Context) {
 func (u *uploadApiImpl) Upload(c *gin.Context) {
 	uploadId := c.PostForm("uploadId")
 	uploadChunkIdxstr := c.PostForm("uploadChunkIdx")
-
+	fmt.Printf("upload = %v, uploadChunkIdxstr = %s\n", uploadId, uploadChunkIdxstr)
 	if uploadId == "" || uploadChunkIdxstr == "" {
 		response.BadRequestWithMessage(c, "参数错误")
 		c.Abort()
@@ -113,7 +114,11 @@ func (u *uploadApiImpl) Merge(c *gin.Context) {
 				IsLost:       true,
 				LostChunkIdx: e.MissingIndex,
 			})
+			return
 		}
+		log.Println("Encount the error", err)
+		response.InternalError(c, err.Error())
+		return
 	}
 
 	response.OK(c)

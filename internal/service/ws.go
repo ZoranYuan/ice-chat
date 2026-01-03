@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"ice-chat/internal/constants"
 	"ice-chat/internal/limter"
 	"ice-chat/internal/model/request"
+	res "ice-chat/internal/model/response"
 	"ice-chat/internal/mq/kafka"
 	"ice-chat/internal/repository"
 	my_redis "ice-chat/pkg/redis"
@@ -17,8 +17,6 @@ import (
 	"log"
 	"strings"
 	"time"
-
-	"github.com/redis/go-redis/v9"
 )
 
 type wsServiceImpl struct {
@@ -101,12 +99,12 @@ func (wss *wsServiceImpl) WatchHandler(c *ws.Client, room *ws.Room, msg []byte) 
 	defer cancel()
 
 	key := fmt.Sprintf("%s%d:%d", constants.VIDEO_CONTROL_LOCK, c.GetUid(), room.GetRoomId())
+	log.Println(key)
 	// 限流锁, 这里前端会做防抖处理
 	if ok, _ := wss.redisOp.SetNx(ctx, key, "", time.Duration(constants.VIDEO_CONTROL_INTERVAL)*time.Second); !ok {
 		c.SendMessageToClient([]byte("操作太频繁啦"))
 		return
 	}
-
 	var message request.VideoState
 	decoder := json.NewDecoder(bytes.NewReader(msg))
 	decoder.DisallowUnknownFields()
@@ -143,18 +141,19 @@ func (wss *wsServiceImpl) WatchHandler(c *ws.Client, room *ws.Room, msg []byte) 
 }
 
 func (wss *wsServiceImpl) SynchronizeVideoState(c *ws.Client, room *ws.Room) {
-	var stateBytes []byte
+	var videoState res.VideoStateInit
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	stateKey := fmt.Sprintf("%s%d", constants.VIDEO_ROOM_STATE, room.GetRoomId())
-	if err := wss.redisOp.GetBytes(ctx, stateKey, &stateBytes); err != nil {
-		if !errors.Is(err, redis.Nil) {
-			ws.Fail(c, "同步失败")
+	stateKey := fmt.Sprintf("%s%d", constants.VIDEO_STATE_ROOM_INIT, room.GetRoomId())
+	for {
+		if err := wss.redisOp.GetBytes(ctx, stateKey, &videoState); err != nil {
+			log.Println("debug")
+			time.Sleep(1000 * time.Millisecond)
+			continue
 		} else {
-			ws.Ok(c, nil)
+			break
 		}
-		return
 	}
 
-	ws.Ok(c, stateBytes)
+	ws.Ok(c, videoState)
 }

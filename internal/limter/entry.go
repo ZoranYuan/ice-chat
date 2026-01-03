@@ -27,8 +27,8 @@ func (l *Limter) Allow(uid uint64) bool {
 
 	limiter, ok := l.limters[uid]
 	if !ok {
-		limter := rate.NewLimiter(l.rate, l.burst)
-		l.limters[uid] = limter
+		limiter = rate.NewLimiter(l.rate, l.burst)
+		l.limters[uid] = limiter
 	}
 
 	return limiter.Allow()

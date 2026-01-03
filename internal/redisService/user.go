@@ -19,6 +19,6 @@ func NewUserRepository(redisOp my_redis.RedisOperator) UserReids {
 }
 
 func (u *userRedisService) StoreAccessKey(key string) error {
-	err := u.redisOp.Set(context.TODO(), key, struct{}{}, config.Conf.JWT.GetAccessTokenExpireDuration())
+	err := u.redisOp.Set(context.TODO(), key, "", config.Conf.JWT.GetAccessTokenExpireDuration())
 	return err
 }

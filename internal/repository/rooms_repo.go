@@ -95,7 +95,6 @@ func (r *groupsRepoImpl) JoinRoom(uid, roomId uint64) error {
 		}
 
 		err := r.db.Client().Create(&roomsMember).Error
-		// 幂等：已经是成员
 		if IsDuplicateKeyErr(err) {
 			return errors.New("你已经在房间中，请勿重复加入")
 		}

@@ -11,7 +11,7 @@ func RegisterUploadRouter(r *gin.Engine, uploadApi api.UploadApi) {
 	ur := r.Group("/upload")
 	ur.Use(middleware.AuthMiddleware())
 
-	ur.POST("/", uploadApi.Upload)
+	ur.POST("", uploadApi.Upload)
 	ur.POST("/merge", uploadApi.Merge)
-	ur.GET("/init", uploadApi.UploadInit)
+	ur.POST("/init", uploadApi.UploadInit)
 }

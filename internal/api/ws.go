@@ -30,7 +30,7 @@ func NewWsAPI(wsSvc service.WsService, roomManager *ws.RoomManager, wsUtils *ws.
 	}
 }
 
-func (w *wsApiImpl) handle(ctx *gin.Context, handleFn func(c *ws.Client, room *ws.Room, msg []byte)) {
+func (w *wsApiImpl) handle(ctx *gin.Context, mode string, handleFn func(c *ws.Client, room *ws.Room, msg []byte)) {
 	v := ctx.Param("roomId")
 	uid, exists := ctx.Get("uid")
 	if !exists {
@@ -63,19 +63,20 @@ func (w *wsApiImpl) handle(ctx *gin.Context, handleFn func(c *ws.Client, room *w
 	// 获取 room
 	client := ws.NewClient(conn, uid.(uint64), config.Conf.Ws.WriteBufferSize)
 
-	// 对于新用户来说，需要直接同步最新的数据
 	room := w.roomManager.GetRoom(roomId)
 	room.AddClient(client)
 	go client.Write(room)
 	go client.Read(room, handleFn)
-	// 同步最新的消息
-	w.wsSvc.SynchronizeVideoState(client, room)
+	if mode == "watch" {
+		//  观看视频时：需要同步最新的状态
+		w.wsSvc.SynchronizeVideoState(client, room)
+	}
 }
 
 func (w *wsApiImpl) Chat(ctx *gin.Context) {
-	w.handle(ctx, w.wsSvc.ChatHandler)
+	w.handle(ctx, "chat", w.wsSvc.ChatHandler)
 }
 
 func (w *wsApiImpl) Watch(ctx *gin.Context) {
-	w.handle(ctx, w.wsSvc.WatchHandler)
+	w.handle(ctx, "watch", w.wsSvc.WatchHandler)
 }

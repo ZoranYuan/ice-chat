@@ -1,4 +1,4 @@
-package request
+package res
 
 type VideoState struct {
 	RoomID    uint64  `json:"roomId" binding:"required"`

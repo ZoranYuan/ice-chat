@@ -31,7 +31,9 @@ func main() {
 	wsUtils := ws.NewWsUtils()
 	roomManager := ws.NewRoomManager()
 	// TODO 版本更新后 ，kafka 功能待完善
-	kafkaClient := kafka.NewKafkaClient(roomManager)
+	topics := []string{"video-transcode"}
+	kafkaClient := kafka.NewKafkaClient(topics, minioClient, redisOp)
+	kafkaClient.StartConsumers(topics)
 
 	if err := dbUtils.AutoMigrate(); err != nil {
 		log.Fatal(err)
@@ -51,7 +53,7 @@ func main() {
 	roomApi := api.NewRoomsApi(roomSev)
 
 	// upload
-	uploadSev := service.NewUploadService(repository.NewUserRepository(dbUtils), minioClient, redisOp)
+	uploadSev := service.NewUploadService(repository.NewUserRepository(dbUtils), minioClient, redisOp, kafkaClient)
 	uploadApi := api.NewUploadApi(uploadSev)
 
 	r := gin.Default()
@@ -61,8 +63,6 @@ func main() {
 	router.RegisterWsRouter(r, wsApi)
 	router.RegisterRoomsRouter(r, roomApi)
 	router.RegisterUploadRouter(r, uploadApi)
-	// 启动异步任务
-	// go kafkaClient.Consume()
 
 	if err := r.Run(config.Conf.App.GetAddress()); err != nil {
 		log.Fatal(err)
