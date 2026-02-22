@@ -33,10 +33,11 @@ func NewKafkaClient(topics []string, minio *minio.Client, redisOp my_redis.Redis
 		Addr:                   kafka.TCP(config.Conf.Kafka.Brokers...),
 		Balancer:               &kafka.LeastBytes{},
 		WriteTimeout:           time.Duration(config.Conf.Kafka.Producer.WriteTimeout),
-		BatchSize:              1,
+		BatchSize:              5,
 		AllowAutoTopicCreation: true,
-		RequiredAcks:           kafka.RequireOne,
-		Async:                  true,
+		RequiredAcks:           kafka.RequireAll,
+		Async:                  false,
+		Completion:             func(messages []kafka.Message, err error) {},
 	}
 
 	readers := make(map[string]*kafka.Reader)
