@@ -50,16 +50,23 @@ func (us *UserService) Login(v request.Login) (*res.Login, error) {
 		return nil, err
 	}
 
-	// 将 token 存入到 redis 中
-	accessKey := constants.ACCESSKEY + strconv.FormatUint(claims.UserId, 10) + ":" + claims.JTI
-	us.userRedis.StoreAccessKey(accessKey)
+	accessKey := constants.ACCESSKEY + strconv.FormatUint(claims.UserId, 10)
+	err = us.userRedis.DeleteAccessKey(accessKey)
+	if err != nil {
+		return nil, err
+	}
 
-	var res *res.Login = &res.Login{
+	err = us.userRedis.StoreAccessKey(accessKey, "")
+	if err != nil {
+		return nil, err
+	}
+
+	var result *res.Login = &res.Login{
 		Token:    token,
 		UserId:   user.UserId,
 		UserName: user.Username,
 		Avatar:   user.Avatar,
 	}
 
-	return res, nil
+	return result, nil
 }

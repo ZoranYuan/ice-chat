@@ -32,8 +32,8 @@ func NewKafkaClient(topics []string, minio *minio.Client, redisOp my_redis.Redis
 	writer := &kafka.Writer{
 		Addr:                   kafka.TCP(config.Conf.Kafka.Brokers...),
 		Balancer:               &kafka.LeastBytes{},
-		WriteTimeout:           time.Duration(config.Conf.Kafka.Producer.WriteTimeout),
-		BatchSize:              5,
+		WriteTimeout:           time.Duration(config.Conf.Kafka.Producer.WriteTimeout) * time.Second,
+		BatchSize:              1,
 		AllowAutoTopicCreation: true,
 		RequiredAcks:           kafka.RequireAll,
 		Async:                  false,
@@ -188,8 +188,6 @@ func (k *KafkaClient) handleVideoTranscode(msg kafka.Message) error {
 		log.Println("Failed to delete Redis key:", err)
 	}
 
-	log.Println("debug")
-
 	// TODO 将上传好的 url 传入到 redis 中，再通过 ws 的初始化传递给前端
 	var message = res.VideoStateInit{
 		RoomID:    task.RoomID,
@@ -207,6 +205,7 @@ func (k *KafkaClient) handleVideoTranscode(msg kafka.Message) error {
 		return err
 	}
 
+	// TODO 后续优化，看看哪种方案更加合适
 	ok, err := k.redisOp.SetNx(context.TODO(), stateKey, messageByte, expiry)
 
 	if !ok {

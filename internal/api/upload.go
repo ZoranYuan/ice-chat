@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"ice-chat/internal/constants"
 	cerror "ice-chat/internal/model/error"
@@ -108,7 +109,8 @@ func (u *uploadApiImpl) Merge(c *gin.Context) {
 	err := u.uploadSev.Merge(mergeInfo)
 
 	if err != nil {
-		if e, ok := err.(*cerror.ChunkMissingError); ok {
+		var e *cerror.ChunkMissingError
+		if errors.As(err, &e) {
 			response.BadRequestWithData(c, res.UploadMerge{
 				UploadId:     mergeInfo.UploadId,
 				IsLost:       true,
