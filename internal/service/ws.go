@@ -1,7 +1,6 @@
 package service
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -98,62 +97,65 @@ func (wss *wsServiceImpl) WatchHandler(c *ws.Client, room *ws.Room, msg []byte) 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(constants.REDIS_TIMEOUT)*time.Millisecond)
 	defer cancel()
 
-	key := fmt.Sprintf("%s%d:%d", constants.VIDEO_CONTROL_LOCK, c.GetUid(), room.GetRoomId())
-	log.Println(key)
 	// 限流锁, 这里前端会做防抖处理
-	if ok, _ := wss.redisOp.SetNx(ctx, key, "", time.Duration(constants.VIDEO_CONTROL_INTERVAL)*time.Second); !ok {
+	key := fmt.Sprintf("%s%d:%d", constants.VIDEO_CONTROL_LOCK, c.GetUid(), room.GetRoomId())
+	if ok, _ := wss.redisOp.SetNx(ctx, key, "", time.Duration(constants.VIDEO_CONTROL_INTERVAL)*time.Millisecond); !ok {
 		c.SendMessageToClient([]byte("操作太频繁啦"))
 		return
 	}
-	var message request.VideoState
-	decoder := json.NewDecoder(bytes.NewReader(msg))
-	decoder.DisallowUnknownFields()
 
-	if err := decoder.Decode(&message); err != nil {
-		log.Printf("failed to marsha1: %v", err)
-		ws.Fail(c, "非法请求")
+	// TODO 引入并发锁， 对于 A 和 B 两个请求来说，如果是同时发生的，可能出现覆盖的问题，比如 A 来更新（读取到旧状态），此时旧状态未能及时更新，B 又来（读取到旧状态）
+	/*
+		前端传递的 msg 格式
+
+		type VideoCommand struct {
+			RoomId    uint64
+			Action    VideoAction
+			Time      float64      // seek 时使用，前端拖拽进度条的时候使用
+			Speed     float64
+			TimeStamp int64      // 防止旧消息
+		}
+	*/
+	now := time.Now().Unix()
+
+	var videoCommand request.VideoCommand
+	if err := json.Unmarshal(msg, &videoCommand); err != nil {
+		log.Println("Failed to get video state", err)
 		return
 	}
 
-	if message.TimeStamp <= 0 {
-		// 非法参数
-		ws.Fail(c, "非法请求")
-		return
-	}
+	videoStateKey := fmt.Sprintf("%s%d", constants.VIDEO_ROOM_STATE, videoCommand.RoomId)
 
-	// TODO 原子更新状态
-	tsKey := fmt.Sprintf("%s%d", constants.VIDEO_LATEST_TIMESTAMP, room.GetRoomId())
-	stateKey := fmt.Sprintf("%s%d", constants.VIDEO_ROOM_STATE, room.GetRoomId())
-	res, err := wss.redisOp.RunScript(ctx, scripts.UpdateLatestTimestamp, []string{tsKey, stateKey}, constants.VIDEO_STATE_TIME, message.TimeStamp, string(msg))
+	// TODO 直接使用 Lua 脚本来避免并发带来的覆盖问题
+	result, err := wss.redisOp.RunScriptWithData(ctx, scripts.UpdateVideoState, []string{videoStateKey}, now, videoCommand.Action,
+		videoCommand.Action,
+		videoCommand.Time,
+		videoCommand.Speed,
+		videoCommand.TimeStamp)
 	if err != nil {
-		log.Printf("lua script failed: %v", err)
-		ws.Fail(c, "服务异常")
+		log.Println("Failed to resolve, ", err)
 		return
 	}
 
-	if res == 0 {
-		// 旧指令，正常丢弃
+	if result == nil {
+		log.Println("Failed to update video state")
 		return
 	}
 
-	// 广播
-	wss.handle(c, room, msg)
+	newStateJson := result.(string)
+	// TODO 广播
+	wss.handle(c, room, []byte(newStateJson))
 }
 
 func (wss *wsServiceImpl) SynchronizeVideoState(c *ws.Client, room *ws.Room) {
-	var videoState res.VideoStateInit
+	var videoState res.VideoState
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	stateKey := fmt.Sprintf("%s%d", constants.VIDEO_STATE_ROOM_INIT, room.GetRoomId())
-	for {
-		if err := wss.redisOp.GetBytes(ctx, stateKey, &videoState); err != nil {
-			log.Println("debug")
-			time.Sleep(1000 * time.Millisecond)
-			continue
-		} else {
-			break
-		}
+	videoStateKey := fmt.Sprintf("%s%d", constants.VIDEO_ROOM_STATE, room.GetRoomId())
+	if err := wss.redisOp.GetBytes(ctx, videoStateKey, &videoState); err != nil {
+		log.Println("debug")
+		ws.Fail(c, "视频同步失败，请稍后再试")
+	} else {
+		ws.Ok(c, videoState)
 	}
-
-	ws.Ok(c, videoState)
 }

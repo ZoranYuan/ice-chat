@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"ice-chat/internal/constants"
-	cerror "ice-chat/internal/model/error"
 	"ice-chat/internal/model/request"
+	res "ice-chat/internal/model/response"
 	mq_eneity "ice-chat/internal/mq/entity"
 	"ice-chat/internal/mq/kafka"
 	"ice-chat/internal/repository"
@@ -24,6 +24,7 @@ type UploadService interface {
 	Merge(mergeInfo request.UploadMerge) error
 	Upload(uploadId string, uploadChunkIdx int) error
 	BreakPoint(uploadId string) (int64, error)
+	GetMergeState(uploadId string) (uint64, error)
 }
 
 type uploadServiceImpl struct {
@@ -41,6 +42,9 @@ func NewUploadService(userRepo repository.UserRepository, minio *minio.Client, r
 		kafkaClient: kafkaClient,
 	}
 }
+
+// TODO 1. 支持断点续传 （通过 redis 存储已经上传的切片的索引 -- 注意：上传失败的文件，前端已经存储，前端会对所有未成功上传的切片进行重新传递）
+// TODO 2. 合并切片的时候，实时更新 redis 状态 (交由前端获取最新的状态)，如果获取到的状态值为 -1，那么表示 merge 失败了，此时优化点就是：后端会在数据库中对已经上传的文件进行落盘（存储已经合并了哪些文件，最后由前端请求，再重新在断点进行合并）
 
 func (us *uploadServiceImpl) Merge(mergeInfo request.UploadMerge) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -73,22 +77,77 @@ func (us *uploadServiceImpl) Merge(mergeInfo request.UploadMerge) error {
 	defer out.Close()
 
 	// 合并所有 chunk
-	for i := 0; i < mergeInfo.TotalChunks; i++ {
-		part := fmt.Sprintf("%s/%d", tempDir, i)
-		in, err := os.Open(part)
-		if err != nil {
-			return &cerror.ChunkMissingError{MissingIndex: i}
+	go func() {
+		mergeStateKey := fmt.Sprintf("%s%s", constants.VIDEO_MERGE_KEY, mergeInfo.UploadId)
+
+		mergeI := 1
+
+		defer func() {
+			// TODO 切片合并失败
+			mergeState := res.MergeState{
+				Merged: mergeI,
+				Status: res.MergeFailed,
+				Total:  mergeInfo.TotalChunks,
+				Error:  "",
+			}
+
+			data, err := json.Marshal(mergeState)
+			if err != nil {
+				log.Println("Failed to marshal ", err)
+			}
+
+			if err := us.redisOp.Set(ctx, mergeStateKey, data, 10*time.Minute); err != nil {
+				return
+			}
+		}()
+
+		for ; mergeI <= mergeInfo.TotalChunks; mergeI++ {
+			part := fmt.Sprintf("%s/%d", tempDir, mergeI)
+			in, err := os.Open(part)
+			if err != nil {
+				return
+			}
+
+			_, err = io.Copy(out, in)
+			in.Close()
+			if err != nil {
+				return
+			}
+
+			// TODO 记录合并的状态， 可以将状态值落盘在数据库中
+			mergeState := res.MergeState{
+				Merged: mergeI,
+				Status: res.MergeMerging,
+				Total:  mergeInfo.TotalChunks,
+				Error:  "",
+			}
+
+			data, err := json.Marshal(mergeState)
+			if err != nil {
+				log.Println("Failed to marshal ", err)
+			}
+
+			if err := us.redisOp.Set(ctx, mergeStateKey, data, 10*time.Minute); err != nil {
+				return
+			}
 		}
 
-		n, err := io.Copy(out, in)
-		in.Close()
+		mergeState := res.MergeState{
+			Merged: mergeI,
+			Status: res.MergeSuccess,
+			Total:  mergeInfo.TotalChunks,
+			Error:  "",
+		}
+
+		data, err := json.Marshal(mergeState)
 		if err != nil {
-			return fmt.Errorf("failed to copy chunk %d: %w", i, err)
+			log.Println("Failed to marshal ", err)
 		}
-		if n == 0 {
-			return fmt.Errorf("chunk %d is empty", i)
+
+		if err := us.redisOp.Set(ctx, mergeStateKey, data, 10*time.Minute); err != nil {
+			return
 		}
-	}
+	}()
 
 	// 检查合并后文件大小
 	info, err := out.Stat()
@@ -121,8 +180,8 @@ func (us *uploadServiceImpl) BreakPoint(uploadId string) (int64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(constants.REDIS_TIMEOUT)*time.Millisecond)
 	defer cancel()
 	idxKey := fmt.Sprintf("%s%s", constants.UPLOAD_CHUNK_IDX, uploadId)
-	res, err := us.redisOp.RunScript(ctx, scripts.UpdateUploadChunkIdx, []string{idxKey}, time.Duration(constants.UPLOAD_CHUNK_IDX_TIMEOUT)*time.Hour)
-	return res, err
+	result, err := us.redisOp.RunScript(ctx, scripts.UpdateUploadChunkIdx, []string{idxKey}, time.Duration(constants.UPLOAD_CHUNK_IDX_TIMEOUT)*time.Hour)
+	return result, err
 }
 
 func (us *uploadServiceImpl) Upload(uploadId string, uploadChunkIdx int) error {
@@ -131,4 +190,9 @@ func (us *uploadServiceImpl) Upload(uploadId string, uploadChunkIdx int) error {
 	defer cancel()
 	idxKey := fmt.Sprintf("%s%s", constants.UPLOAD_CHUNK_IDX, uploadId)
 	return us.redisOp.Set(ctx, idxKey, uploadChunkIdx, time.Duration(constants.UPLOAD_CHUNK_IDX_TIMEOUT)*time.Hour)
+}
+
+func (us *uploadServiceImpl) GetMergeState(uploadId string) (uint64, error) {
+	mergeStateKey := fmt.Sprintf("%s%s", constants.VIDEO_MERGE_KEY, uploadId)
+	return us.redisOp.GetUint64(context.Background(), mergeStateKey)
 }

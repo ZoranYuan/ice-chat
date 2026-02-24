@@ -100,6 +100,8 @@ func (k *KafkaClient) StartConsumers(topic []string) {
 }
 
 func (k *KafkaClient) Produce(ctx context.Context, msg []byte, topic string) error {
+	// TODO 加入拦截器
+
 	return k.writer.WriteMessages(ctx,
 		kafka.Message{
 			Value: msg,
@@ -110,6 +112,8 @@ func (k *KafkaClient) Produce(ctx context.Context, msg []byte, topic string) err
 
 func (k *KafkaClient) handleVideoTranscode(msg kafka.Message) error {
 	var task mq_eneity.TranscodeTask
+
+	now := time.Now().Unix()
 
 	if ok := utils.UnmarshalTools(msg.Value, &task); !ok {
 		log.Println("Failed to unmarshal task")
@@ -156,20 +160,22 @@ func (k *KafkaClient) handleVideoTranscode(msg kafka.Message) error {
 		return err
 	}
 
+	// TODO： 优化，这里只是给了 30 分钟
+	url, err := k.minio.PresignedGetObject(
+		context.Background(),
+		"videos",
+		objectKey,
+		time.Duration(constants.VIDEO_URL_TTL)*time.Minute,
+		nil,
+	)
+
 	videoDuration, err := utils.GetVideoDuration(task.OutFile)
 	if err != nil {
 		log.Println("Failed to get video duration:", err)
 		// 可以使用默认有效期，比如 1 小时
 		videoDuration = 3600
 	}
-	expiry := time.Duration(videoDuration) * time.Second
-	videoURL, err := k.minio.PresignedGetObject(
-		context.Background(),
-		"videos",
-		objectKey,
-		expiry,
-		nil,
-	)
+
 	if err != nil {
 		log.Println("Failed to generate presigned URL:", err)
 		return err
@@ -186,29 +192,37 @@ func (k *KafkaClient) handleVideoTranscode(msg kafka.Message) error {
 	idxChunkKey := fmt.Sprintf("%s%s", constants.UPLOAD_CHUNK_IDX, task.UploadID)
 	if err := k.redisOp.Del(context.Background(), idxChunkKey); err != nil {
 		log.Println("Failed to delete Redis key:", err)
+		return err
 	}
 
-	// TODO 将上传好的 url 传入到 redis 中，再通过 ws 的初始化传递给前端
-	var message = res.VideoStateInit{
-		RoomID:    task.RoomID,
-		Progress:  0,
-		IsPlaying: false,
-		Speed:     1.0,
-		TimeStamp: time.Now().UnixMilli(),
-		VideoUrl:  videoURL.String(),
+	// TODO 将 objectKey 传入到 redis 中
+	videoUrlKey := fmt.Sprintf("%s%d", constants.VIDEO_URL_KEY, task.RoomID)
+	if err := k.redisOp.Set(context.Background(), videoUrlKey, url.String(), time.Duration(constants.VIDEO_URL_TTL)); err != nil {
+		log.Println("Failed to set Redis key:", err)
+		return err
 	}
 
-	stateKey := fmt.Sprintf("%s%s", constants.VIDEO_STATE_ROOM_INIT, task.RoomID)
-	messageByte, err := json.Marshal(message)
+	// TODO 同步视频状态
+	videoState := res.VideoState{
+		RoomID:      task.RoomID,
+		CurrentTime: 0,
+		Duration:    videoDuration,
+		IsPlaying:   false,
+		Speed:       1.0,
+		UpdatedAt:   now,
+	}
+
+	videoStateKey := fmt.Sprintf("%s%d", constants.VIDEO_ROOM_STATE, task.RoomID)
+	videoStateBytes, err := json.Marshal(videoState)
 	if err != nil {
 		log.Println("Failed to resolve message", err)
 		return err
 	}
 
-	// TODO 后续优化，看看哪种方案更加合适
-	ok, err := k.redisOp.SetNx(context.TODO(), stateKey, messageByte, expiry)
+	// TODO 后续优化，设置视频的状态值，这里状态值就是定好只有 10 分钟，理论上是应该去监听连接当前 ws 服务的人数，如果依旧有心跳，那么就刷新该状态
+	err = k.redisOp.Set(context.TODO(), videoStateKey, videoStateBytes, time.Duration(constants.VIDEO_STATE_TTL))
 
-	if !ok {
+	if err != nil {
 		log.Println("Failed to set videoUrl to redis", err)
 	}
 

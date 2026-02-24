@@ -18,6 +18,7 @@ import (
 type RoomsService interface {
 	CreateRoom(group request.Room, uid uint64) (error, uint64, string)
 	JoinRoom(uid uint64, joinCode string) (uint64, error)
+	GetWatchVideo(roomId uint64) (string, error)
 }
 
 type roomsServImpl struct {
@@ -113,4 +114,11 @@ func (r *roomsServImpl) JoinRoom(uid uint64, joinCode string) (uint64, error) {
 	}
 
 	return roomId, nil
+}
+
+func (r *roomsServImpl) GetWatchVideo(roomId uint64) (string, error) {
+	// TODO 如果发现 url 过期了，理论上是应该重新去生成，但是这个版本就是定好 url 时间旧只有 30 分钟
+
+	videoUrlKey := fmt.Sprintf("%s%d", constants.VIDEO_URL_KEY, roomId)
+	return r.roomRedisService.GetWatchVideoByRoomId(context.Background(), videoUrlKey)
 }

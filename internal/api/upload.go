@@ -23,6 +23,7 @@ type UploadApi interface {
 	UploadInit(c *gin.Context)
 	Upload(c *gin.Context)
 	Merge(c *gin.Context)
+	GetMergeStatus(c *gin.Context)
 }
 
 type uploadApiImpl struct {
@@ -141,4 +142,23 @@ func (u *uploadApiImpl) BreakPointContinue(c *gin.Context) {
 	response.OKWithData(c, res.UploadPoint{
 		UploadChunkIdx: int(current),
 	})
+}
+
+func (u *uploadApiImpl) GetMergeStatus(c *gin.Context) {
+	uploadId := c.Param("uploadId")
+
+	if uploadId == "" {
+		response.BadRequestWithMessage(c, "参数错误")
+		c.Abort()
+		return
+	}
+
+	state, err := u.uploadSev.GetMergeState(uploadId)
+	if err != nil {
+		response.InternalError(c, "网络错误")
+		c.Abort()
+		return
+	}
+
+	response.OKWithData(c, state)
 }

@@ -14,4 +14,5 @@ func RegisterUploadRouter(r *gin.Engine, uploadApi api.UploadApi) {
 	ur.POST("", uploadApi.Upload)
 	ur.POST("/merge", uploadApi.Merge)
 	ur.POST("/init", uploadApi.UploadInit)
+	ur.GET("/status/:uploadId", uploadApi.GetMergeStatus)
 }

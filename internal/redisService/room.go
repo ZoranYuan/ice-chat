@@ -14,6 +14,7 @@ type RoomRedisService interface {
 	Allow(ctx context.Context, key string, ex time.Duration) bool
 	GetRoomIDByJoinCode(ctx context.Context, key string) (uint64, error)
 	CreateJoinCode(ctx context.Context, joinCode string, roomId uint64, ex time.Duration) error
+	GetWatchVideoByRoomId(ctx context.Context, key string) (string, error)
 }
 
 func NewRoomRedisService(redisOp my_redis.RedisOperator) RoomRedisService {
@@ -33,4 +34,8 @@ func (rs *roomRedisServiceImpl) GetRoomIDByJoinCode(ctx context.Context, key str
 
 func (rs *roomRedisServiceImpl) CreateJoinCode(ctx context.Context, joinCode string, roomId uint64, ex time.Duration) error {
 	return rs.redisOp.Set(ctx, joinCode, roomId, ex)
+}
+
+func (rs *roomRedisServiceImpl) GetWatchVideoByRoomId(ctx context.Context, key string) (string, error) {
+	return rs.redisOp.Get(ctx, key)
 }

@@ -18,6 +18,8 @@ type RedisOperator interface {
 	GetUint64(ctx context.Context, key string) (uint64, error)
 	SetNx(ctx context.Context, key string, value any, expire time.Duration) (bool, error)
 	RunScript(ctx context.Context, redisScript *redis.Script, keys []string, args ...any) (int64, error)
+	Get(ctx context.Context, key string) (string, error)
+	RunScriptWithData(ctx context.Context, redisScript *redis.Script, keys []string, args ...any) (interface{}, error)
 }
 
 // RedisUtil 实现RedisOperator接口
@@ -39,6 +41,10 @@ func (ru *redisUtil) Set(ctx context.Context, key string, value any, expire time
 		return fmt.Errorf("redis set marshal fail: %w", err)
 	}
 	return ru.client.Set(ctx, key, data, expire).Err()
+}
+
+func (ru *redisUtil) Get(ctx context.Context, key string) (string, error) {
+	return ru.client.Get(ctx, key).Result()
 }
 
 // Get 获取缓存
@@ -86,6 +92,12 @@ func (ru *redisUtil) SetNx(ctx context.Context, key string, value any, expire ti
 
 func (ru *redisUtil) RunScript(ctx context.Context, redisScript *redis.Script, keys []string, args ...any) (int64, error) {
 	res, err := redisScript.Run(ctx, ru.client, keys, args...).Int64()
+
+	return res, err
+}
+
+func (ru *redisUtil) RunScriptWithData(ctx context.Context, redisScript *redis.Script, keys []string, args ...any) (interface{}, error) {
+	res, err := redisScript.Run(ctx, ru.client, keys, args...).Result()
 
 	return res, err
 }
